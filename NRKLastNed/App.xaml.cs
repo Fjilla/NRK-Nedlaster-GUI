@@ -13,6 +13,9 @@ namespace NRKLastNed
             // Last inn innstillinger og sett tema ved oppstart
             var settings = AppSettings.Load();
             ThemeService.ApplyTheme(settings.AppTheme);
+
+            // NYTT: Sjekk om vi nettopp har oppdatert (og vis changelog popup)
+            AppUpdateService.ShowReleaseNotesIfJustUpdated();
         }
     }
 }

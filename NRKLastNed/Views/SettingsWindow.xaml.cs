@@ -4,33 +4,38 @@ using System.Collections.Generic;
 using Microsoft.Win32;
 using NRKLastNed.Models;
 using NRKLastNed.Services;
-using System.Diagnostics; // For Process.Start
+using System.Diagnostics;
+using System.Reflection;
+using System.Threading.Tasks;
 
 namespace NRKLastNed.Views
 {
     public partial class SettingsWindow : Window
     {
         private AppSettings _settings;
-        private UpdateService _updateService; // Ny service
+        private UpdateService _toolUpdateService;
+        private AppUpdateService _appUpdateService;
+
+        private AppUpdateService.AppUpdateInfo _pendingAppUpdate;
 
         public SettingsWindow()
         {
             InitializeComponent();
             _settings = AppSettings.Load();
-            _updateService = new UpdateService();
+            _toolUpdateService = new UpdateService();
+            _appUpdateService = new AppUpdateService();
 
             InitializeUI();
-            CheckVersionsAsync(); // Sjekk versjon ved start av vindu
+
+            _ = CheckVersionsAsync();
         }
 
         private void InitializeUI()
         {
-            // Populer lister
             cmbResolution.ItemsSource = new List<string> { "2160", "1440", "1080", "720", "540", "480", "best" };
             cmbTheme.ItemsSource = new List<string> { "System", "Light", "Dark" };
             cmbLogLevel.ItemsSource = Enum.GetValues(typeof(LogLevel));
 
-            // Sett verdier
             txtOutput.Text = _settings.OutputFolder;
             txtTemp.Text = _settings.TempFolder;
             chkUseSystemTemp.IsChecked = _settings.UseSystemTemp;
@@ -43,32 +48,74 @@ namespace NRKLastNed.Views
             cmbLogLevel.SelectedItem = _settings.LogLevel;
         }
 
-        // NY: Sjekk versjon av yt-dlp
-        private async void CheckVersionsAsync()
+        private async Task CheckVersionsAsync()
         {
-            string version = await _updateService.GetYtDlpVersionAsync();
-            lblYtDlpVersion.Text = $"Installert versjon: {version}";
+            // 1. Sjekk APP oppdatering
+            lblAppVersion.Text = "Sjekker...";
+            btnAppUpdate.IsEnabled = false;
+
+            // #if DEBUG er en "preprocessor directive". 
+            // Denne koden kjøres KUN når du utvikler i Visual Studio (Debug configuration).
+            // Når du lager en ferdig versjon (Release), fjernes denne koden automatisk.
+#if DEBUG
+            lblAppVersion.Text = "Dev Mode (Deaktivert)";
+            btnAppUpdate.IsEnabled = false;
+            btnAppUpdate.ToolTip = "Oppdatering er deaktivert i utviklermodus for å hindre overskriving av lokale filer.";
+#else
+            // Denne koden kjøres kun i den ferdige appen (Release)
+            _pendingAppUpdate = await _appUpdateService.CheckForAppUpdatesAsync();
+
+            if (_pendingAppUpdate.IsNewVersionAvailable)
+            {
+                lblAppVersion.Text = $"Ny versjon: {_pendingAppUpdate.LatestVersion}";
+                btnAppUpdate.IsEnabled = true;
+                btnAppUpdate.ToolTip = "Klikk for å laste ned og installere ny versjon.";
+            }
+            else
+            {
+                lblAppVersion.Text = "Oppdatert";
+                btnAppUpdate.IsEnabled = false;
+                btnAppUpdate.ToolTip = null;
+            }
+#endif
+
+            // 2. Sjekk yt-dlp versjon
+            string ytVersion = await _toolUpdateService.GetYtDlpVersionAsync();
+            lblYtDlpVersion.Text = $"Installert versjon: {ytVersion}";
         }
 
-        // NY: Oppdater yt-dlp knapp
+        private async void AppUpdate_Click(object sender, RoutedEventArgs e)
+        {
+            if (_pendingAppUpdate == null || !_pendingAppUpdate.IsNewVersionAvailable) return;
+
+            var res = MessageBox.Show($"En ny versjon ({_pendingAppUpdate.LatestVersion}) er tilgjengelig!\n\nEndringer:\n{_pendingAppUpdate.ReleaseNotes}\n\nVil du laste ned og oppdatere nå?",
+                                      "Oppdatering", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (res == MessageBoxResult.Yes)
+            {
+                btnAppUpdate.IsEnabled = false;
+                lblAppVersion.Text = "Laster ned...";
+                await _appUpdateService.PerformAppUpdateAsync(_pendingAppUpdate);
+            }
+        }
+
         private async void UpdateYtDlp_Click(object sender, RoutedEventArgs e)
         {
             var btn = sender as System.Windows.Controls.Button;
-            if (btn != null) btn.IsEnabled = false; // Hindre dobbelklikk
+            if (btn != null) btn.IsEnabled = false;
 
             lblYtDlpVersion.Text = "Oppdaterer... vennligst vent.";
 
-            string result = await _updateService.UpdateYtDlpAsync();
+            string result = await _toolUpdateService.UpdateYtDlpAsync();
 
             MessageBox.Show(result, "Oppdatering Status", MessageBoxButton.OK, MessageBoxImage.Information);
 
-            // Sjekk versjon på nytt
-            CheckVersionsAsync();
+            string ytVersion = await _toolUpdateService.GetYtDlpVersionAsync();
+            lblYtDlpVersion.Text = $"Installert versjon: {ytVersion}";
 
             if (btn != null) btn.IsEnabled = true;
         }
 
-        // NY: Hent FFmpeg (Åpner nettleser)
         private void GetFfmpeg_Click(object sender, RoutedEventArgs e)
         {
             try

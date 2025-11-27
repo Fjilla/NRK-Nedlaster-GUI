@@ -27,6 +27,9 @@ namespace NRKLastNed.ViewModels
         private CancellationTokenSource _cts;
         private string _startButtonText = "START NEDLASTING";
 
+        // NYTT FELT: For varsling om oppdatering
+        private string _updateNotificationText;
+
         public MainViewModel()
         {
             _settings = AppSettings.Load();
@@ -41,6 +44,16 @@ namespace NRKLastNed.ViewModels
             OpenFolderCommand = new RelayCommand((o) => OpenDownloadFolder());
 
             LogService.Log("Applikasjon startet", LogLevel.Info, _settings);
+
+            // NYTT KALL: Sjekk etter oppdatering i bakgrunnen ved start
+            _ = CheckAppUpdateSilentAsync();
+        }
+
+        // NY PROPERTY: Tekst som vises i GUI hvis ny versjon finnes
+        public string UpdateNotificationText
+        {
+            get => _updateNotificationText;
+            set { _updateNotificationText = value; OnPropertyChanged(); }
         }
 
         public bool IsDownloading
@@ -107,6 +120,22 @@ namespace NRKLastNed.ViewModels
             _settings = AppSettings.Load();
             _service = new YtDlpService(_settings);
             LogService.Log("Innstillinger oppdatert", LogLevel.Info, _settings);
+        }
+
+        // NY METODE: Sjekker oppdatering uten å forstyrre brukeren
+        private async Task CheckAppUpdateSilentAsync()
+        {
+            var updateService = new AppUpdateService();
+            var info = await updateService.CheckForAppUpdatesAsync();
+
+            if (info.IsNewVersionAvailable)
+            {
+                UpdateNotificationText = $"Ny versjon tilgjengelig: {info.LatestVersion}!";
+            }
+            else
+            {
+                UpdateNotificationText = "";
+            }
         }
 
         private void RemoveItem()
@@ -201,12 +230,9 @@ namespace NRKLastNed.ViewModels
                     var pPercent = new Progress<double>(p => {
                         item.Progress = p;
 
-                        // Beregn total progresjon for hele batchen
-                        // p er 0-100 for filen.
                         double batchProgress = currentBaseProgress + (p * (itemWeight / 100.0));
                         TotalProgress = batchProgress;
 
-                        // Oppdater teksten nede med både fil-teller og total prosent
                         BatchStatusMessage = $"Laster ned fil {currentCount} av {totalCount} (Total: {batchProgress:0}%)";
                     });
 
