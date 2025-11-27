@@ -60,9 +60,28 @@ namespace NRKLastNed.Services
                             }
                         }
 
+                        // Hent lokal versjon
                         Version currentVersion = Assembly.GetExecutingAssembly().GetName().Version;
+
+                        // Parse GitHub tag (f.eks "v1.03")
                         string cleanTag = tagName.TrimStart('v', 'V');
 
+                        // SPESIALHÅNDTERING FOR FORMATET v1.03, v1.04 osv.
+                        // .NET vil tolke "1.03" som "1.3" (Major 1, Minor 3).
+                        // Men din AssemblyVersion er sannsynligvis "1.0.3" (Major 1, Minor 0, Build 3).
+                        // Vi konverterer derfor "1.03" til "1.0.3" manuelt her hvis den starter med 0.
+                        var parts = cleanTag.Split('.');
+                        if (parts.Length == 2 && parts[1].StartsWith("0") && parts[1].Length >= 2)
+                        {
+                            // Eksempel: "1.03" -> parts[0]="1", parts[1]="03"
+                            if (int.TryParse(parts[1], out int minorBuild))
+                            {
+                                // Gjør om til formatet 1.0.3
+                                cleanTag = $"{parts[0]}.0.{minorBuild}";
+                            }
+                        }
+
+                        // Fallback: Hvis taggen mangler punktum helt (f.eks "v1")
                         if (cleanTag.Split('.').Length < 2) cleanTag += ".0";
                         if (cleanTag.Split('.').Length < 3) cleanTag += ".0";
 
@@ -72,7 +91,7 @@ namespace NRKLastNed.Services
                             return new AppUpdateInfo
                             {
                                 IsNewVersionAvailable = updateAvailable,
-                                LatestVersion = tagName,
+                                LatestVersion = tagName, // Vi viser original tag (v1.03) til brukeren
                                 CurrentVersion = $"v{currentVersion.Major}.{currentVersion.Minor}.{currentVersion.Build}",
                                 DownloadUrl = downloadUrl,
                                 ReleaseNotes = body,
@@ -111,23 +130,14 @@ namespace NRKLastNed.Services
                     await File.WriteAllBytesAsync(installerPath, data);
                 }
 
-                // Hent mappen hvor programmet kjører fra NÅ 
-                // (f.eks "D:\Program Files (x86)\NRK Nedlaster GUI Test")
                 string currentDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
-
-                // Fjern trailing backslash hvis den finnes, Inno Setup liker rene stier uten dobbel slash
                 if (currentDir.EndsWith("\\")) currentDir = currentDir.Substring(0, currentDir.Length - 1);
 
                 MessageBox.Show("Oppdatering lastet ned.\n\nProgrammet lukkes nå for å starte installasjonen.",
                                 "Oppdatering", MessageBoxButton.OK, MessageBoxImage.Information);
 
-                // VIKTIG: Her legger vi til /DIR argumentet som tvinger installeren til å bruke SAMME mappe som vi er i nå.
-                // Vi bruker hermetegn (\") rundt stien i tilfelle mappenavnet har mellomrom.
+                // Tving installasjon til nåværende mappe
                 string arguments = $"/DIR=\"{currentDir}\"";
-
-                // Hvis du vil at installasjonen skal skje HELT automatisk uten neste-knapper, 
-                // kan du endre linjen over til:
-                // string arguments = $"/VERYSILENT /SUPPRESSMSGBOXES /DIR=\"{currentDir}\"";
 
                 Process.Start(new ProcessStartInfo
                 {
@@ -136,7 +146,6 @@ namespace NRKLastNed.Services
                     Arguments = arguments
                 });
 
-                // Avslutt umiddelbart så filene ikke er låst
                 Application.Current.Shutdown();
             }
             catch (Exception ex)
@@ -152,7 +161,6 @@ namespace NRKLastNed.Services
 
         public static void ShowReleaseNotesIfJustUpdated()
         {
-            // Ikke i bruk ved installasjonsmetode
         }
     }
 }
