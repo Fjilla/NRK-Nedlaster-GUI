@@ -17,7 +17,7 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <!-- Updates (NY) -->
+                <!-- Updates -->
                 <RowDefinition Height="Auto"/>
                 <!-- Logging -->
                 <RowDefinition Height="Auto"/>
@@ -80,7 +80,7 @@
                 </Grid>
             </GroupBox>
 
-            <!-- VERKTØY OG OPPDATERINGER (NY SEKSJON) -->
+            <!-- VERKTØY OG OPPDATERINGER -->
             <GroupBox Grid.Row="5" Header="Verktøy og Oppdateringer" Foreground="{DynamicResource AccentColor}" BorderBrush="{DynamicResource BorderColor}" Margin="0,0,0,15">
                 <StackPanel Margin="10">
                     <!-- yt-dlp -->
@@ -106,7 +106,8 @@
                             <TextBlock Text="FFmpeg:" FontWeight="Bold"/>
                             <TextBlock Text="Må oppdateres manuelt." Foreground="{DynamicResource TextMuted}"/>
                         </StackPanel>
-                        <Button Grid.Column="1" Content="Hent FFmpeg" Click="GetFfmpeg_Click" Width="120" Background="{DynamicResource BgLight}" BorderBrush="{DynamicResource BorderColor}" BorderThickness="1"/>
+                        <!-- ENDRET HER: Fjernet overstyring av bakgrunnsfarge slik at den bruker standard knappestil (AccentColor) -->
+                        <Button Grid.Column="1" Content="Hent FFmpeg" Click="GetFfmpeg_Click" Width="120"/>
                     </Grid>
                 </StackPanel>
             </GroupBox>
