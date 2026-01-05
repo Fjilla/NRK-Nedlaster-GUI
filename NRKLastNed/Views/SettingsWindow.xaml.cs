@@ -15,8 +15,11 @@ namespace NRKLastNed.Views
         private AppSettings _settings;
         private UpdateService _toolUpdateService;
         private AppUpdateService _appUpdateService;
+        private FfmpegUpdateService _ffmpegUpdateService;
 
         private AppUpdateService.AppUpdateInfo _pendingAppUpdate;
+        private UpdateService.ToolUpdateInfo _pendingYtDlpUpdate; // NY
+        private FfmpegUpdateService.FfmpegUpdateInfo _pendingFfmpegUpdate;
 
         public SettingsWindow()
         {
@@ -24,6 +27,7 @@ namespace NRKLastNed.Views
             _settings = AppSettings.Load();
             _toolUpdateService = new UpdateService();
             _appUpdateService = new AppUpdateService();
+            _ffmpegUpdateService = new FfmpegUpdateService();
 
             InitializeUI();
 
@@ -50,45 +54,94 @@ namespace NRKLastNed.Views
 
         private async Task CheckVersionsAsync()
         {
-            // 1. Sjekk APP oppdatering
+            // --- 1. SJEKK APP OPPDATERING ---
             lblAppVersion.Text = "Sjekker...";
             btnAppUpdate.IsEnabled = false;
 
-            // #if DEBUG er en "preprocessor directive". 
-            // Denne koden kjøres KUN når du utvikler i Visual Studio (Debug configuration).
-            // Når du lager en ferdig versjon (Release), fjernes denne koden automatisk.
 #if DEBUG
-            lblAppVersion.Text = "Dev Mode (Deaktivert)";
-            btnAppUpdate.IsEnabled = false;
-            btnAppUpdate.ToolTip = "Oppdatering er deaktivert i utviklermodus for å hindre overskriving av lokale filer.";
+            lblAppVersion.Text = "Dev Mode";
+            btnAppUpdate.ToolTip = "Oppdatering deaktivert i debug.";
 #else
-            // Denne koden kjøres kun i den ferdige appen (Release)
             _pendingAppUpdate = await _appUpdateService.CheckForAppUpdatesAsync();
 
             if (_pendingAppUpdate.IsNewVersionAvailable)
             {
-                lblAppVersion.Text = $"Ny versjon: {_pendingAppUpdate.LatestVersion}";
+                lblAppVersion.Text = $"Ny versjon tilgjengelig ({_pendingAppUpdate.LatestVersion})";
+                btnAppUpdate.Content = "Oppdater";
                 btnAppUpdate.IsEnabled = true;
-                btnAppUpdate.ToolTip = "Klikk for å laste ned og installere ny versjon.";
             }
             else
             {
-                lblAppVersion.Text = "Oppdatert";
+                lblAppVersion.Text = "Siste versjon installert";
+                btnAppUpdate.Content = "Oppdatert";
                 btnAppUpdate.IsEnabled = false;
-                btnAppUpdate.ToolTip = null;
             }
 #endif
 
-            // 2. Sjekk yt-dlp versjon
-            string ytVersion = await _toolUpdateService.GetYtDlpVersionAsync();
-            lblYtDlpVersion.Text = $"Installert versjon: {ytVersion}";
+            // --- 2. SJEKK YT-DLP OPPDATERING ---
+            lblYtDlpVersion.Text = "Sjekker...";
+            btnYtDlpUpdate.IsEnabled = false;
+
+            _pendingYtDlpUpdate = await _toolUpdateService.CheckForYtDlpUpdateAsync();
+
+            if (_pendingYtDlpUpdate.CurrentVersion == "Ikke installert" || _pendingYtDlpUpdate.CurrentVersion == "Ukjent")
+            {
+                // STATUS: MANGLER
+                lblYtDlpVersion.Text = "Mangler (Må lastes ned)";
+                btnYtDlpUpdate.Content = "Last ned";
+                btnYtDlpUpdate.IsEnabled = true;
+            }
+            else if (_pendingYtDlpUpdate.IsNewVersionAvailable)
+            {
+                // STATUS: NY VERSJON
+                lblYtDlpVersion.Text = "Ny versjon tilgjengelig";
+                btnYtDlpUpdate.Content = "Oppdater";
+                btnYtDlpUpdate.IsEnabled = true;
+            }
+            else
+            {
+                // STATUS: OPPDATERT
+                lblYtDlpVersion.Text = "Siste versjon installert";
+                btnYtDlpUpdate.Content = "Oppdatert";
+                btnYtDlpUpdate.IsEnabled = false;
+            }
+
+
+            // --- 3. SJEKK FFMPEG OPPDATERING ---
+            lblFfmpegVersion.Text = "Sjekker...";
+            btnFfmpegUpdate.IsEnabled = false;
+
+            _pendingFfmpegUpdate = await _ffmpegUpdateService.CheckForUpdatesAsync();
+            string installedFfmpeg = await _ffmpegUpdateService.GetInstalledVersionAsync();
+
+            if (installedFfmpeg == "Ikke installert")
+            {
+                // STATUS: MANGLER
+                lblFfmpegVersion.Text = "Mangler (Må lastes ned)";
+                btnFfmpegUpdate.Content = "Last ned";
+                btnFfmpegUpdate.IsEnabled = true;
+            }
+            else if (_pendingFfmpegUpdate.IsNewVersionAvailable)
+            {
+                // STATUS: NY VERSJON
+                lblFfmpegVersion.Text = "Ny versjon tilgjengelig";
+                btnFfmpegUpdate.Content = "Oppdater";
+                btnFfmpegUpdate.IsEnabled = true;
+            }
+            else
+            {
+                // STATUS: OPPDATERT
+                lblFfmpegVersion.Text = "Siste versjon installert";
+                btnFfmpegUpdate.Content = "Oppdatert";
+                btnFfmpegUpdate.IsEnabled = false;
+            }
         }
 
         private async void AppUpdate_Click(object sender, RoutedEventArgs e)
         {
             if (_pendingAppUpdate == null || !_pendingAppUpdate.IsNewVersionAvailable) return;
 
-            var res = MessageBox.Show($"En ny versjon ({_pendingAppUpdate.LatestVersion}) er tilgjengelig!\n\nEndringer:\n{_pendingAppUpdate.ReleaseNotes}\n\nVil du laste ned og oppdatere nå?",
+            var res = MessageBox.Show($"Vil du oppdatere til {_pendingAppUpdate.LatestVersion}?",
                                       "Oppdatering", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (res == MessageBoxResult.Yes)
@@ -101,32 +154,43 @@ namespace NRKLastNed.Views
 
         private async void UpdateYtDlp_Click(object sender, RoutedEventArgs e)
         {
-            var btn = sender as System.Windows.Controls.Button;
-            if (btn != null) btn.IsEnabled = false;
+            btnYtDlpUpdate.IsEnabled = false;
+            lblYtDlpVersion.Text = "Jobber...";
 
-            lblYtDlpVersion.Text = "Oppdaterer... vennligst vent.";
+            // Send med info slik at vi kan laste ned hvis den mangler
+            string result = await _toolUpdateService.UpdateYtDlpAsync(_pendingYtDlpUpdate);
 
-            string result = await _toolUpdateService.UpdateYtDlpAsync();
+            MessageBox.Show(result, "Status", MessageBoxButton.OK, MessageBoxImage.Information);
 
-            MessageBox.Show(result, "Oppdatering Status", MessageBoxButton.OK, MessageBoxImage.Information);
-
-            string ytVersion = await _toolUpdateService.GetYtDlpVersionAsync();
-            lblYtDlpVersion.Text = $"Installert versjon: {ytVersion}";
-
-            if (btn != null) btn.IsEnabled = true;
+            await CheckVersionsAsync();
         }
 
-        private void GetFfmpeg_Click(object sender, RoutedEventArgs e)
+        private async void GetFfmpeg_Click(object sender, RoutedEventArgs e)
         {
-            try
+            btnFfmpegUpdate.IsEnabled = false;
+            lblFfmpegVersion.Text = "Jobber...";
+
+            if (_pendingFfmpegUpdate != null && _pendingFfmpegUpdate.IsNewVersionAvailable)
             {
-                Process.Start(new ProcessStartInfo
+                var res = MessageBox.Show($"Vil du laste ned FFmpeg ({_pendingFfmpegUpdate.LatestVersion})?\nStørrelse: ~80 MB",
+                                          "Oppdater FFmpeg", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (res == MessageBoxResult.Yes)
                 {
-                    FileName = "https://ffmpeg.org/download.html",
-                    UseShellExecute = true
-                });
+                    var progress = new Progress<string>(status => lblFfmpegVersion.Text = status);
+                    try
+                    {
+                        await _ffmpegUpdateService.UpdateFfmpegAsync(_pendingFfmpegUpdate, progress);
+                        MessageBox.Show("FFmpeg er installert/oppdatert!", "Suksess", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Feil: {ex.Message}", "Feil", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
             }
-            catch { }
+
+            await CheckVersionsAsync();
         }
 
         private void BrowseOutput_Click(object sender, RoutedEventArgs e)

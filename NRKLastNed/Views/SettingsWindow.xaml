@@ -97,7 +97,7 @@
                             <TextBlock Text="yt-dlp status:" FontWeight="Bold"/>
                             <TextBlock x:Name="lblYtDlpVersion" Text="Sjekker versjon..." Foreground="{DynamicResource TextMuted}"/>
                         </StackPanel>
-                        <Button Grid.Column="1" Content="Oppdater yt-dlp" Click="UpdateYtDlp_Click" Width="140"/>
+                        <Button x:Name="btnYtDlpUpdate" Grid.Column="1" Content="Oppdater yt-dlp" Click="UpdateYtDlp_Click" Width="140" IsEnabled="False"/>
                     </Grid>
 
                     <Grid>
@@ -106,10 +106,10 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Text="FFmpeg:" FontWeight="Bold"/>
-                            <TextBlock Text="Må oppdateres manuelt." Foreground="{DynamicResource TextMuted}"/>
+                            <TextBlock Text="FFmpeg status:" FontWeight="Bold"/>
+                            <TextBlock x:Name="lblFfmpegVersion" Text="Sjekker..." Foreground="{DynamicResource TextMuted}"/>
                         </StackPanel>
-                        <Button Grid.Column="1" Content="Hent FFmpeg" Click="GetFfmpeg_Click" Width="140"/>
+                        <Button x:Name="btnFfmpegUpdate" Grid.Column="1" Content="Oppdater FFmpeg" Click="GetFfmpeg_Click" Width="140" IsEnabled="False"/>
                     </Grid>
                 </StackPanel>
             </GroupBox>
