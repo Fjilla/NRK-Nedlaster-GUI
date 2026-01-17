@@ -158,7 +158,6 @@ namespace NRKLastNed.ViewModels
         private async Task AddAndAnalyzeAsync()
         {
             if (string.IsNullOrWhiteSpace(InputUrl)) return;
-            if (IsDownloading) { MessageBox.Show("Kan ikke legge til mens nedlasting pågår."); return; }
 
             string urlToProcess = InputUrl;
             InputUrl = "";

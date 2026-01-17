@@ -14,7 +14,29 @@ namespace NRKLastNed.Services
 
     public static class LogService
     {
-        private static string _logFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Logs");
+        private static string _logFolder
+        {
+            get
+            {
+                // Lagre logger i brukerens AppData-mappe i stedet for programmappen
+                string appDataFolder = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "NRKLastNed",
+                    "Logs");
+                
+                // Opprett mappen hvis den ikke eksisterer
+                if (!Directory.Exists(appDataFolder))
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(appDataFolder);
+                    }
+                    catch { }
+                }
+                
+                return appDataFolder;
+            }
+        }
 
         public static void Log(string message, LogLevel level, AppSettings settings)
         {
